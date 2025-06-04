@@ -236,6 +236,7 @@ const styles = StyleSheet.create({
     errorText: {
         color: '#ef4444',
         fontSize: 16,
+        fontFamily: "Karla-Regular",
     },
     /* ---------- Banner ---------- */
     hero: {
@@ -253,15 +254,16 @@ const styles = StyleSheet.create({
     bannerTitle: {
         color: '#f4c542',
         fontSize: 42,
-        fontWeight: '700',
         lineHeight: 46,
+        fontFamily: "MarkaziText-Regular",
     },
     bannerLocation: {
         color: '#d1d5db',
         fontSize: 28,
         fontWeight: '600',
         marginBottom: 12,
-    },
+        fontFamily: "MarkaziText-Regular",  
+    },  
     bannerDescription: {
         color: '#f3f4f6',
         fontSize: 16,
@@ -304,6 +306,7 @@ const styles = StyleSheet.create({
         color: '#374151',
         fontWeight: '600',
         fontSize: 14,
+        fontFamily: "Karla-Regular",
     },
     chipLabelSelected: {
         color: '#ffffff',
@@ -314,8 +317,9 @@ const styles = StyleSheet.create({
         marginTop: 32,
         marginBottom: 16,
         fontSize: 22,
-        fontWeight: '700',
+        fontWeight: '600',
         color: '#111827',
+        
     },
     menuItemContainer: {
         marginLeft:10,
@@ -325,15 +329,17 @@ const styles = StyleSheet.create({
     },
     menuItemTitle: {
         fontSize: 18,
-        fontWeight: '700',
+        fontWeight: '600',
         color: '#000000',
         marginBottom: 4,
+        fontFamily: "Karla-Regular",
     },
     menuItemDescription: {
         fontSize: 14,
         color: '#475569',
         flexShrink: 1,
         marginBottom: 4,
+        fontFamily: "Karla-Regular",
     },
     menuItemPrice: {
         fontSize: 16,

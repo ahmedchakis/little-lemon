@@ -13,11 +13,11 @@ import {
 } from 'react-native';
 
 const Onboarding: React.FC = ({ navigation }: any) => {
-  const [firstName, setFirstName] = useState('');
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
 
   // Disable Next button unless both fields are filled
-  const isNextDisabled = !firstName || !email;
+  const isNextDisabled = !name || name.split(' ').length<2 || !email;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -25,34 +25,51 @@ const Onboarding: React.FC = ({ navigation }: any) => {
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <Image
-            source={require('../assets/images/Logo.png')} 
-            style={styles.logo}
-            resizeMode="contain"
-          />
-          <Text style={styles.title}>LITTLE LEMON</Text>
-        </View>
+
 
         {/* Main Card */}
+        <View style={styles.hero}>
+
+
+              <Text style={styles.bannerTitle}>Little Lemon</Text>
+              <Text style={styles.bannerLocation}>Chicago</Text>
+          <View style={styles.banner}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.bannerDescription} numberOfLines={5}>
+                We are a family owned 
+                Mediterranean restaurant, 
+                focused on traditional 
+                recipes served with a modern twist.
+              </Text>
+
+            </View>
+            <Image
+              source={{
+                uri: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=300&q=80',
+              }}
+              style={styles.bannerImage}
+            />
+
+          </View>
+
+
+        </View>
         <View style={styles.card}>
-          <Text style={styles.subtitle}>Let us get to know you</Text>
 
           <View style={styles.formGroup}>
-            <Text style={styles.label}>First Name</Text>
+            <Text style={styles.label}>Name <Text style={styles.required}>*</Text></Text>
             <TextInput
               style={styles.input}
               placeholder=""
-              value={firstName}
-              onChangeText={setFirstName}
+              value={name}
+              onChangeText={setName}
               autoCapitalize="words"
               returnKeyType="next"
             />
           </View>
 
           <View style={styles.formGroup}>
-            <Text style={styles.label}>Email</Text>
+            <Text style={styles.label}>Email <Text style={styles.required}>*</Text></Text>
             <TextInput
               style={styles.input}
               placeholder=""
@@ -77,14 +94,14 @@ const Onboarding: React.FC = ({ navigation }: any) => {
             onPress={() => {
               const login = async () => {
                 try {
-                    await AsyncStorage.setItem("user",JSON.stringify({email,firstName}))
-                    navigation.navigate("Profile")
-                    
+                  await AsyncStorage.setItem("user", JSON.stringify({ email, firstName: name.split(' ')[0], lastName: name.split(' ')[1] }))
+                  navigation.replace("Home")
+
                 } catch (error) {
-                    console.log(error)
-                    
+                  console.log(error)
+
                 }
-                
+
               }
               login()
             }}
@@ -98,6 +115,50 @@ const Onboarding: React.FC = ({ navigation }: any) => {
 };
 
 const styles = StyleSheet.create({
+  hero: {
+    width: '100%',
+    backgroundColor: '#415a55',
+    paddingBottom: 10
+  },
+  banner: {
+    backgroundColor: '#415a55',
+    borderRadius: 12,
+    padding: 20,
+    flexDirection: 'row',
+    gap: 16,
+  },
+ required:{
+    color:'red'  
+  },
+  bannerTitle: {
+    paddingLeft:16,
+    paddingTop:16,
+    color: '#f4c542',
+    fontSize: 36,
+    fontWeight: '600',
+    lineHeight: 46,
+    fontFamily: "MarkaziText-Regular",
+  },
+  bannerLocation: {
+    paddingLeft:16,
+    color: '#d1d5db',
+    fontSize: 28,
+    fontWeight: '600',
+    fontFamily: "MarkaziText-Regular",
+
+  },
+  bannerDescription: {
+    color: '#f3f4f6',
+    fontSize: 16,
+    lineHeight: 22,
+    fontFamily: "Karla-Regular",
+  },
+  bannerImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 12,
+    paddingBottom:16
+  },
   safeArea: {
     flex: 1,
     backgroundColor: '#F6F8FA',
@@ -126,6 +187,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#3A4D39',
     letterSpacing: 2,
+    fontFamily: "Karla-Regular",
   },
   card: {
     width: '100%',
@@ -141,6 +203,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 30,
     fontWeight: '500',
+    fontFamily: "Karla-Regular",
   },
   formGroup: {
     width: '100%',
@@ -170,7 +233,7 @@ const styles = StyleSheet.create({
     paddingVertical: 22,
   },
   button: {
-    backgroundColor: '#CBD2D9',
+    backgroundColor: '#F4CE14',
     paddingVertical: 12,
     paddingHorizontal: 40,
     borderRadius: 8,
@@ -178,11 +241,13 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.6,
+    backgroundColor:'#CBD2D9'
   },
   buttonText: {
     color: '#253540',
     fontSize: 18,
     fontWeight: '500',
+    fontFamily: "Karla-Regular",
   },
 });
 

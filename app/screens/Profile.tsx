@@ -1,12 +1,18 @@
-import { useTheme } from "@react-navigation/native";
+import { CommonActions, StackActions, useNavigation, useTheme } from "@react-navigation/native";
 import React, { useEffect, useState } from "react";
-import { View, Text, ScrollView, Image, Pressable, TouchableOpacity, Switch, TextInput,StyleSheet, Alert } from "react-native";
+import { View, Text, ScrollView, Image, Pressable, TouchableOpacity, Switch, TextInput, StyleSheet, Alert } from "react-native";
 import { Colors } from "react-native/Libraries/NewAppScreen";
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as FileSystem from 'expo-file-system';
+type Props = {
+  setOnboardingCompleted: (flag: boolean) => void;
+};
+function Profile({ setOnboardingCompleted }: Props) {
+  const navigation = useNavigation()
+  // 1. Profile fields
 
-const Profile: React.FC = () => {
-      // 1. Profile fields
+  const [user, setUser] = useState<any>({});
   const [firstName, setFirstName] = useState<string>('');
   const [lastName, setLastName] = useState<string>('');
   const [email, setEmail] = useState<string>('');
@@ -18,7 +24,7 @@ const Profile: React.FC = () => {
   const [notifSpecialOffers, setNotifSpecialOffers] = useState<boolean>(true);
   const [notifNewsletter, setNotifNewsletter] = useState<boolean>(true);
 
-    // 3. Avatar URI (local or remote)
+  // 3. Avatar URI (local or remote)
   const [avatarUri, setAvatarUri] = useState<string>('');
 
   useEffect(() => {
@@ -38,20 +44,33 @@ const Profile: React.FC = () => {
     (async () => {
       const user = await AsyncStorage.getItem('user') ?? ''
       const userJson = JSON.parse(user);
+      setUser(userJson)
       setEmail(userJson.email)
       setFirstName(userJson.firstName)
+      setLastName(userJson.lastName ?? '')
+      setPhone(userJson.phone ?? '');
+
+      if (userJson.notifications) {
+
+        setNotifOrderStatuses(userJson.notifications.orderStatuses);
+        setNotifPasswordChanges(userJson.notifications.passwordChanges);
+        setNotifSpecialOffers(userJson.notifications.specialOffers);
+        setNotifNewsletter(userJson.notifications.newsletter);
+      }
+      const saved = await AsyncStorage.getItem('@avatarPath');
+      if (saved) {
+        setAvatarUri(saved);
+      }
     })();
   }, []);
 
 
+
+
+
   // ─── Handlers ────────────────────────────────────────────────────────────
 
-  // 1. Navigate Back
-  const handleGoBack = () => {
-    // Replace with your navigation logic if using React Navigation / Expo Router
-    // e.g. navigation.goBack() or router.back()
-    Alert.alert('Go Back', 'Placeholder: replace with your navigation logic.');
-  };
+
 
   // 2. Pick a new avatar from the library
   const handleChangeAvatar = async () => {
@@ -63,42 +82,87 @@ const Profile: React.FC = () => {
         quality: 0.8,
       });
 
-      // Newer versions of expo-image-picker return { canceled: boolean, assets: [] }
       if (!result.canceled) {
-        // @ts-ignore ‒ result.assets[0].uri exists
-        setAvatarUri(result.assets[0].uri);
+        // @ts-ignore – result.assets[0].uri exists
+        const pickedUri = result.assets[0].uri;
+
+        // 1. Extract filename from URI
+        const filename = pickedUri.split('/').pop()!;
+        // 2. Create a new path inside documentDirectory
+        const destPath = FileSystem.documentDirectory + filename;
+
+        // 3. Copy the file from its temporary URI to our app’s storage
+        await FileSystem.copyAsync({
+          from: pickedUri,
+          to: destPath,
+        });
+
+        // 4. Persist that new path (destPath) somewhere (e.g. AsyncStorage)
+        await AsyncStorage.setItem('@avatarPath', destPath);
+
+        // 5. Update state so the <Image> will render from destPath
+        setAvatarUri(destPath);
       }
     } catch (error) {
-      console.error('Erreur lors de la sélection d’image :', error);
+      console.error('Erreur lors de la sélection/sauvegarde de l’image :', error);
     }
   };
-
   // 3. Remove avatar → reset to placeholder
-  const handleRemoveAvatar = () => {
+  const handleRemoveAvatar = async () => {
+    // 1. Remove from AsyncStorage
+    await AsyncStorage.removeItem('@avatarPath');
+
+    // 2. Optionally delete the file from FileSystem (if you want to free up space)
+    if (avatarUri) {
+      try {
+        const info = await FileSystem.getInfoAsync(avatarUri);
+        if (info.exists) {
+          await FileSystem.deleteAsync(avatarUri, { idempotent: true });
+        }
+      } catch (e) {
+        console.warn('Failed to delete file:', e);
+      }
+    }
+
+    // 3. Reset state
     setAvatarUri('');
   };
 
-    // 4. Log out
-  const handleLogout = () => {
-    // Replace with real logout logic (e.g., clear tokens, navigate to login screen)
-    //Alert.alert('Déconnexion', 'Vous êtes maintenant déconnecté (stub).');
+  // 4. Log out
+  const handleLogout = async () => {
+    console.log("log out clicked")
+    handleRemoveAvatar()
+    await AsyncStorage.clear()
+    navigation.dispatch(
+      CommonActions.reset({
+        index: 0,
+        routes: [
+          { name: 'Onboarding' },
+        ],
+      })
+    );
   };
 
   // 5. Discard changes → reset all fields to initial “hard‐coded” values
-  const handleDiscard = () => {
-    setFirstName('Tilly');
-    setLastName('Doe');
-    setEmail('tillydoe@example.com');
-    setPhone('(217) 555-0113');
-    setNotifOrderStatuses(true);
-    setNotifPasswordChanges(true);
-    setNotifSpecialOffers(true);
-    setNotifNewsletter(true);
+  const handleDiscard = async () => {
+    setFirstName(user.firstName ?? '');
+    setLastName(user.lastName ?? '');
+    setEmail(user.email ?? '');
+    setPhone(user.phone ?? '');
+    setNotifOrderStatuses(user.notifications?.orderStatuses ?? true);
+    setNotifPasswordChanges(user.notifications?.passwordChanges ?? true);
+    setNotifSpecialOffers(user.notifications?.specialOffers ?? true);
+    setNotifNewsletter(user.notifications?.newsletter ?? true);
+
+    const saved = await AsyncStorage.getItem('@avatarPath');
+    if (saved) {
+      setAvatarUri(saved);
+    }
     //handleRemoveAvatar();
   };
 
   // 6. Save changes → stub out an alert (hook up your API here)
-  const handleSave = () => {
+  const handleSave = async () => {
     // Gather all data
     const payload = {
       firstName,
@@ -111,225 +175,237 @@ const Profile: React.FC = () => {
         specialOffers: notifSpecialOffers,
         newsletter: notifNewsletter,
       },
-      //avatarUri,
-    };
-}
-    const theme = useTheme()
-    return (
-        <ScrollView style={{
-            backgroundColor: 'white',
-            margin:10
-        }}>
-            <Text style={{
-                color:'#495E57',
-                fontSize:24,
-                fontWeight:'bold'
-            }}>
-                Personal Information
-            </Text>
+      avatarUri,
+    }; 
+
+    await AsyncStorage.setItem("user", JSON.stringify(payload))
+
+    navigation.dispatch(
+      CommonActions.reset({
+        index: 0,
+        routes: [
+          { name: 'Home' },
+        ],
+      })
+    );
+
+  }
+  const theme = useTheme()
+  return (
+    <ScrollView style={{
+      backgroundColor: 'white',
+      margin: 10
+    }}>
+      <Text style={{
+        color: '#495E57',
+        fontSize: 24,
+        fontWeight: 'bold'
+      }}>
+        Personal Information
+      </Text>
+      <View style={{
+
+
+        flex: 1,
+        justifyContent: 'flex-start',
+        flexDirection: 'row'
+
+      }}>
+        <View>
+          <Text style={{
+            color: "#888"
+          }}>Avatar</Text>
+          {avatarUri ? <Image source={{ uri: avatarUri }} style={{
+            margin: 10,
+            height: 80,
+            width: 80,
+            borderRadius: 50
+          }} resizeMode="contain" /> :
+
             <View style={{
-
-
-                flex: 1,
-                justifyContent: 'flex-start',
-                flexDirection: 'row'
-
+              flex: 1,
+              alignItems: 'center', height: 80,
+              width: 80,
+              justifyContent: 'center',
+              backgroundColor: '#495E57',
+              borderRadius: 50
             }}>
-                <View>
-                    <Text style={{
-                        color: "#888"
-                    }}>Avatar</Text>
-                    {avatarUri ? <Image source={{uri:avatarUri}} style={{
-                        margin:10,
-                        height: 80,
-                        width: 80,
-                        borderRadius:50
-                    }} resizeMode="contain" /> : 
-                    
-                    <View style={{
-                        flex:1,
-                        alignItems:'center',height:80,
-                        width:80,
-                        justifyContent:'center',
-                        backgroundColor:'#495E57',
-                        borderRadius:50
-                    }}>
-                        <Text style={{
-                            color:'white',
-                            fontSize:16
-                        }}>
+              <Text style={{
+                color: 'white',
+                fontSize: 16
+              }}>
 
-                        {firstName[0]+(lastName[0]??'')}
-                        
-                        </Text></View>}
-                </View>
-                <Pressable 
-                
-                onPress={handleChangeAvatar}
-                style={{
-                    marginStart: 20,
-                    marginTop: 45,
-                    backgroundColor: '#495E57',
-                    height: 50,
+                {firstName[0] + (lastName[0] ?? '')}
 
-                    borderRadius: 10,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: 100
-                }}>
-                    <Text style={{
-                        color: 'white'
-                    }}>
-                        Change
-
-                    </Text>
-                </Pressable>
-                <Pressable 
-                onPress={handleRemoveAvatar}
-                style={{
-                    marginStart: 20,
-                    marginTop: 45,
-                    borderColor: '#495E57',
-                    borderWidth: 2,
-                    height: 50,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: 100
-                }}>
-                    <Text style={{
-                        color: '#495E57'
-                    }}>
-                        Remove
-
-                    </Text>
-                </Pressable>
-
-
-            </View>
-            {/* ─── First & Last Name ───────────────────────────────────────────── */}
-                    <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>First name</Text>
-          <TextInput
-            style={styles.textInput}
-            value={firstName}
-            onChangeText={setFirstName}
-            placeholder="First name"
-            placeholderTextColor="#999"
-          />
+              </Text></View>}
         </View>
+        <Pressable
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>Last name</Text>
-          <TextInput
-            style={styles.textInput}
-            value={lastName}
-            onChangeText={setLastName}
-            placeholder="Last name"
-            placeholderTextColor="#999"
-          />
-        </View>
+          onPress={handleChangeAvatar}
+          style={{
+            marginStart: 20,
+            marginTop: 45,
+            backgroundColor: '#495E57',
+            height: 50,
 
-        {/* ─── Email & Phone ──────────────────────────────────────────────── */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>Email</Text>
-          <TextInput
-            style={styles.textInput}
-            value={email}
-            onChangeText={setEmail}
-            placeholder="you@example.com"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            placeholderTextColor="#999"
-          />
-        </View>
+            borderRadius: 10,
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 100
+          }}>
+          <Text style={{
+            color: 'white'
+          }}>
+            Change
 
-        <View style={[styles.inputGroup, { marginBottom: 24 }]}>
-          <Text style={styles.inputLabel}>Phone number</Text>
-          <TextInput
-            style={styles.textInput}
-            value={phone}
-            onChangeText={setPhone}
-            placeholder="(123) 456-7890"
-            keyboardType="phone-pad"
-            placeholderTextColor="#999"
-          />
-        </View>
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={()=> setAvatarUri('')}
+          style={{
+            marginStart: 20,
+            marginTop: 45,
+            borderColor: '#495E57',
+            borderWidth: 2,
+            height: 50,
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 100
+          }}>
+          <Text style={{
+            color: '#495E57'
+          }}>
+            Remove
 
-        {/* ─── Email Notifications ─────────────────────────────────────────── */}
-        <Text style={[styles.sectionTitle, { marginBottom: 12 }]}>
-          Email notifications
-        </Text>
+          </Text>
+        </Pressable>
 
-        <View style={styles.notificationRow}>
-          <Text style={styles.notificationLabel}>Order statuses</Text>
-          <Switch
-            value={notifOrderStatuses}
-            onValueChange={setNotifOrderStatuses}
-            trackColor={{ false: '#ccc', true: '#4f7b5c' }}
-            thumbColor={notifOrderStatuses ? '#fff' : '#fff'}
-          />
-        </View>
 
-        <View style={styles.notificationRow}>
-          <Text style={styles.notificationLabel}>Password changes</Text>
-          <Switch
-            value={notifPasswordChanges}
-            onValueChange={setNotifPasswordChanges}
-            trackColor={{ false: '#ccc', true: '#4f7b5c' }}
-            thumbColor={notifPasswordChanges ? '#fff' : '#fff'}
-          />
-        </View>
+      </View>
+      {/* ─── First & Last Name ───────────────────────────────────────────── */}
+      <View style={styles.inputGroup}>
+        <Text style={styles.inputLabel}>First name</Text>
+        <TextInput
+          style={styles.textInput}
+          value={firstName}
+          onChangeText={setFirstName}
+          placeholder="First name"
+          placeholderTextColor="#999"
+        />
+      </View>
 
-         <View style={styles.notificationRow}>
-          <Text style={styles.notificationLabel}>Special offers</Text>
-          <Switch
-            value={notifSpecialOffers}
-            onValueChange={setNotifSpecialOffers}
-            trackColor={{ false: '#ccc', true: '#4f7b5c' }}
-            thumbColor={notifSpecialOffers ? '#fff' : '#fff'}
-          />
-        </View>
+      <View style={styles.inputGroup}>
+        <Text style={styles.inputLabel}>Last name</Text>
+        <TextInput
+          style={styles.textInput}
+          value={lastName}
+          onChangeText={setLastName}
+          placeholder="Last name"
+          placeholderTextColor="#999"
+        />
+      </View>
 
-        <View style={[styles.notificationRow, { marginBottom: 32 }]}>
-          <Text style={styles.notificationLabel}>Newsletter</Text>
-          <Switch
-            value={notifNewsletter}
-            onValueChange={setNotifNewsletter}
-            trackColor={{ false: '#ccc', true: '#4f7b5c' }}
-            thumbColor={notifNewsletter ? '#fff' : '#fff'}
-          />
-        </View>
+      {/* ─── Email & Phone ──────────────────────────────────────────────── */}
+      <View style={styles.inputGroup}>
+        <Text style={styles.inputLabel}>Email</Text>
+        <TextInput
+          style={styles.textInput}
+          value={email}
+          onChangeText={setEmail}
+          placeholder="you@example.com"
+          keyboardType="email-address"
+          autoCapitalize="none"
+          placeholderTextColor="#999"
+        />
+      </View>
 
-         {/* ─── Log out Button (Yellow) ─────────────────────────────────────── */}
+      <View style={[styles.inputGroup, { marginBottom: 24 }]}>
+        <Text style={styles.inputLabel}>Phone number</Text>
+        <TextInput
+          style={styles.textInput}
+          value={phone}
+          onChangeText={setPhone}
+          placeholder="(123) 456-7890"
+          keyboardType="phone-pad"
+          placeholderTextColor="#999"
+        />
+      </View>
+
+      {/* ─── Email Notifications ─────────────────────────────────────────── */}
+      <Text style={[styles.sectionTitle, { marginBottom: 12 }]}>
+        Email notifications
+      </Text>
+
+      <View style={styles.notificationRow}>
+        <Text style={styles.notificationLabel}>Order statuses</Text>
+        <Switch
+          value={notifOrderStatuses}
+          onValueChange={setNotifOrderStatuses}
+          trackColor={{ false: '#ccc', true: '#4f7b5c' }}
+          thumbColor={notifOrderStatuses ? '#fff' : '#fff'}
+        />
+      </View>
+
+      <View style={styles.notificationRow}>
+        <Text style={styles.notificationLabel}>Password changes</Text>
+        <Switch
+          value={notifPasswordChanges}
+          onValueChange={setNotifPasswordChanges}
+          trackColor={{ false: '#ccc', true: '#4f7b5c' }}
+          thumbColor={notifPasswordChanges ? '#fff' : '#fff'}
+        />
+      </View>
+
+      <View style={styles.notificationRow}>
+        <Text style={styles.notificationLabel}>Special offers</Text>
+        <Switch
+          value={notifSpecialOffers}
+          onValueChange={setNotifSpecialOffers}
+          trackColor={{ false: '#ccc', true: '#4f7b5c' }}
+          thumbColor={notifSpecialOffers ? '#fff' : '#fff'}
+        />
+      </View>
+
+      <View style={[styles.notificationRow, { marginBottom: 32 }]}>
+        <Text style={styles.notificationLabel}>Newsletter</Text>
+        <Switch
+          value={notifNewsletter}
+          onValueChange={setNotifNewsletter}
+          trackColor={{ false: '#ccc', true: '#4f7b5c' }}
+          thumbColor={notifNewsletter ? '#fff' : '#fff'}
+        />
+      </View>
+
+      {/* ─── Log out Button (Yellow) ─────────────────────────────────────── */}
+      <TouchableOpacity
+        onPress={handleLogout}
+        style={[styles.button, styles.logoutButton]}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.logoutButtonText}>Log out</Text>
+      </TouchableOpacity>
+
+      {/* ─── Bottom Action Buttons ───────────────────────────────────────── */}
+      <View style={styles.bottomActions}>
         <TouchableOpacity
-          onPress={handleLogout}
-          style={[styles.button, styles.logoutButton]}
+          onPress={handleDiscard}
+          style={[styles.bottomButton, styles.discardButton]}
           activeOpacity={0.7}
         >
-          <Text style={styles.logoutButtonText}>Log out</Text>
+          <Text style={styles.discardButtonText}>Discard changes</Text>
         </TouchableOpacity>
 
-        {/* ─── Bottom Action Buttons ───────────────────────────────────────── */}
-        <View style={styles.bottomActions}>
-          <TouchableOpacity
-            onPress={handleDiscard}
-            style={[styles.bottomButton, styles.discardButton]}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.discardButtonText}>Discard changes</Text>
-          </TouchableOpacity>
+        <TouchableOpacity
+          onPress={handleSave}
+          style={[styles.bottomButton, styles.saveButton]}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.saveButtonText}>Save changes</Text>
+        </TouchableOpacity>
+      </View>
 
-          <TouchableOpacity
-            onPress={handleSave}
-            style={[styles.bottomButton, styles.saveButton]}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.saveButtonText}>Save changes</Text>
-          </TouchableOpacity>
-        </View>
-                   
-        </ScrollView>
-    )
+    </ScrollView>
+  )
 
 }
 
@@ -382,6 +458,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
     marginBottom: 12,
+    fontFamily: "MarkaziText-Regular",
   },
 
   // ─── Avatar Section ───────────────────────────────────────────────────────
@@ -420,6 +497,7 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 14,
     fontWeight: '500',
+    fontFamily: "Karla-Regular",
   },
   removeButton: {
     backgroundColor: '#FFF',
@@ -428,6 +506,7 @@ const styles = StyleSheet.create({
   },
   removeButtonText: {
     color: '#333',
+    fontFamily: "Karla-Regular",
   },
 
   // ─── Text Inputs ─────────────────────────────────────────────────────────
@@ -439,6 +518,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#555',
     marginBottom: 6,
+    fontFamily: "Karla-Regular",
   },
   textInput: {
     height: 44,
@@ -448,6 +528,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     fontSize: 16,
     color: '#333',
+    fontFamily: "Karla-Regular",
   },
 
   // ─── Notification Rows ───────────────────────────────────────────────────
@@ -460,6 +541,7 @@ const styles = StyleSheet.create({
   notificationLabel: {
     fontSize: 16,
     color: '#333',
+    fontFamily: "Karla-Regular",
   },
 
   // ─── Log out Button ───────────────────────────────────────────────────────
@@ -477,6 +559,7 @@ const styles = StyleSheet.create({
     color: '#333',
     fontWeight: '600',
     fontSize: 16,
+    fontFamily: "Karla-Regular",
   },
 
   // ─── Bottom Action Buttons ────────────────────────────────────────────────
@@ -502,6 +585,7 @@ const styles = StyleSheet.create({
     color: '#333',
     fontSize: 15,
     fontWeight: '500',
+    fontFamily: "Karla-Regular",
   },
   saveButton: {
     backgroundColor: '#4F7B5C', // dark green
@@ -510,5 +594,6 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 15,
     fontWeight: '500',
+    fontFamily: "Karla-Regular",
   },
 });

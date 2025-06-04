@@ -1,98 +1,104 @@
+// App.tsx
 import * as React from 'react';
-import { View, Text, Image, Pressable } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import { View } from 'react-native';
+import { NavigationContainer, CommonActions } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 import Onboarding from './app/screens/Onboarding';
+import Home from './app/screens/Home';
 import Profile from './app/screens/Profile';
 import SplashScreen from './app/screens/SplashScreen';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Feather } from '@expo/vector-icons';
 import Logo from './app/components/Logo';
-import Home from './app/screens/Home';
+import ProfileImage from './app/components/ProfileImage';
+import BackButton from './app/components/BackButton';
+import { useFonts } from 'expo-font';
 
+type RootStackParamList = {
+  Onboarding: undefined;
+  Home: undefined;
+  Profile: undefined;
+};
 
+const Stack = createNativeStackNavigator<RootStackParamList>();
 
+export default function App() {
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [isOnboardingCompleted, setIsOnboardingCompleted] = React.useState(false);
 
-
-const Stack = createNativeStackNavigator();
-
-function App() {
-
-  const [isLoading, setIsLoading] = React.useState(true)
-  const [isOnboardingCompleted, setIsOnboardingCompleted] = React.useState(false)
   React.useEffect(() => {
-
-    const getUserStatus = async () => {
+    (async () => {
       try {
-        const userStatus = await AsyncStorage.getItem('user');
-        console.log(userStatus)
-        if (userStatus && userStatus.length > 0) {
-          setIsOnboardingCompleted(true)
+        const status = await AsyncStorage.getItem('user');
+        if (status && status.length > 0) {
+          setIsOnboardingCompleted(true);
         }
-      } catch (error) {
-        console.log(error);
-
+      } catch (e) {
+        console.warn(e);
+      } finally {
+        setIsLoading(false);
       }
-      finally {
-        setIsLoading(false)
-      }
+    })();
+  }, []);
 
+  const [fontsLoaded] = useFonts({
+    'Karla-Regular': require('./app/assets/fonts/Karla-Regular.ttf'),
+    'MarkaziText-Regular': require('./app/assets/fonts/MarkaziText-Regular.ttf'),
+  });
 
-
-    }
-    getUserStatus();
-
-
-
-  }, [])
-  if (isLoading) {
-    // We haven't finished reading from AsyncStorage yet
+  // Show a splash screen until we’ve read AsyncStorage & fonts are loaded
+  if (isLoading || !fontsLoaded) {
     return <SplashScreen />;
   }
 
+  // Common header options factory
+  const headerOptions = (goBack: boolean) => ({
+    headerTitle: () => (
+      <View style={{ flex: 1, alignItems: 'center' }}>
+        <Logo />
+      </View>
+    ),
+    headerStyle: { backgroundColor: '#f0f0f0' },
+    headerTitleStyle: { color: 'black' },
+    headerLeft: () => (goBack ? <BackButton /> : undefined),
+    headerRight: () => <ProfileImage />,
+  });
+
   return (
     <NavigationContainer>
-
-
-      <Stack.Navigator initialRouteName='Home' screenOptions={{
-        headerTitle: () => (
-                  <View style={{
-                    flex: 1,
-                    alignItems: 'center'
-                  }}>
-
-                    <Logo />
-                  </View>
-                ),
-                headerStyle: { backgroundColor: '#f0f0f0' },
-                headerTitleStyle: { color: 'black' },
-                headerLeft: () => (
-                  <Pressable style={{
-                    padding: 10,
-                    backgroundColor: "#495E57",
-                    borderRadius: 40
-                  }}>
-                    <Feather name={"arrow-left"} size={20} color="white" />
-                  </Pressable>
-                ),
-      }}>
-        {isOnboardingCompleted ? (
-          <>
-            <Stack.Screen name="Home" component={Home} />
-            <Stack.Screen name="Profile" component={Profile}
-              options={{
-               
-                
-              }} />
-          </>
-        ) : (
-          <Stack.Screen name="Onboarding" component={Onboarding}
-
-          />
-        )}
-
-      </Stack.Navigator></NavigationContainer>
+      {/* 
+        We register ALL screens, but choose the initial route
+        based on isOnboardingCompleted.
+      */}
+      <Stack.Navigator
+        initialRouteName={isOnboardingCompleted ? 'Home' : 'Onboarding'}
+      >
+        <Stack.Screen
+          name="Onboarding"
+          component={Onboarding}
+          options={{
+            headerStyle: { backgroundColor: '#f0f0f0' },
+            headerTitleStyle: { color: 'black' },
+            headerTitle: () => (
+              <View style={{ flex: 1, alignItems: 'center' }}>
+                <Logo />
+              </View>
+            )
+          }}
+        />
+        <Stack.Screen
+          name="Home"
+          component={Home}
+          options={headerOptions(false)}
+        />
+        <Stack.Screen
+          name="Profile"
+          children={() => (
+            <Profile setOnboardingCompleted={setIsOnboardingCompleted} />
+          )}
+          options={headerOptions(true)}
+        />
+      </Stack.Navigator>
+    </NavigationContainer>
   );
 }
-
-export default App;
