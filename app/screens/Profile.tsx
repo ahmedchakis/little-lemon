@@ -10,7 +10,6 @@ type Props = {
 };
 function Profile({ setOnboardingCompleted }: Props) {
   const navigation = useNavigation()
-  // 1. Profile fields
 
   const [user, setUser] = useState<any>({});
   const [firstName, setFirstName] = useState<string>('');
@@ -18,13 +17,11 @@ function Profile({ setOnboardingCompleted }: Props) {
   const [email, setEmail] = useState<string>('');
   const [phone, setPhone] = useState<string>('');
 
-  // 2. Notification toggles
   const [notifOrderStatuses, setNotifOrderStatuses] = useState<boolean>(true);
   const [notifPasswordChanges, setNotifPasswordChanges] = useState<boolean>(true);
   const [notifSpecialOffers, setNotifSpecialOffers] = useState<boolean>(true);
   const [notifNewsletter, setNotifNewsletter] = useState<boolean>(true);
 
-  // 3. Avatar URI (local or remote)
   const [avatarUri, setAvatarUri] = useState<string>('');
 
   useEffect(() => {
@@ -39,7 +36,6 @@ function Profile({ setOnboardingCompleted }: Props) {
     })();
   }, []);
 
-  // get first name and email from storage
   useEffect(() => {
     (async () => {
       const user = await AsyncStorage.getItem('user') ?? ''
@@ -72,7 +68,6 @@ function Profile({ setOnboardingCompleted }: Props) {
 
 
 
-  // 2. Pick a new avatar from the library
   const handleChangeAvatar = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -83,36 +78,27 @@ function Profile({ setOnboardingCompleted }: Props) {
       });
 
       if (!result.canceled) {
-        // @ts-ignore – result.assets[0].uri exists
         const pickedUri = result.assets[0].uri;
 
-        // 1. Extract filename from URI
         const filename = pickedUri.split('/').pop()!;
-        // 2. Create a new path inside documentDirectory
         const destPath = FileSystem.documentDirectory + filename;
 
-        // 3. Copy the file from its temporary URI to our app’s storage
         await FileSystem.copyAsync({
           from: pickedUri,
           to: destPath,
         });
 
-        // 4. Persist that new path (destPath) somewhere (e.g. AsyncStorage)
         await AsyncStorage.setItem('@avatarPath', destPath);
 
-        // 5. Update state so the <Image> will render from destPath
         setAvatarUri(destPath);
       }
     } catch (error) {
       console.error('Erreur lors de la sélection/sauvegarde de l’image :', error);
     }
   };
-  // 3. Remove avatar → reset to placeholder
   const handleRemoveAvatar = async () => {
-    // 1. Remove from AsyncStorage
     await AsyncStorage.removeItem('@avatarPath');
 
-    // 2. Optionally delete the file from FileSystem (if you want to free up space)
     if (avatarUri) {
       try {
         const info = await FileSystem.getInfoAsync(avatarUri);
@@ -124,11 +110,9 @@ function Profile({ setOnboardingCompleted }: Props) {
       }
     }
 
-    // 3. Reset state
     setAvatarUri('');
   };
 
-  // 4. Log out
   const handleLogout = async () => {
     console.log("log out clicked")
     handleRemoveAvatar()
@@ -143,7 +127,6 @@ function Profile({ setOnboardingCompleted }: Props) {
     );
   };
 
-  // 5. Discard changes → reset all fields to initial “hard‐coded” values
   const handleDiscard = async () => {
     setFirstName(user.firstName ?? '');
     setLastName(user.lastName ?? '');
@@ -158,12 +141,9 @@ function Profile({ setOnboardingCompleted }: Props) {
     if (saved) {
       setAvatarUri(saved);
     }
-    //handleRemoveAvatar();
   };
 
-  // 6. Save changes → stub out an alert (hook up your API here)
   const handleSave = async () => {
-    // Gather all data
     const payload = {
       firstName,
       lastName,
